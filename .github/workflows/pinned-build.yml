@@ -42,9 +42,10 @@ jobs:
           LITERT=$(grep -oP '(?<=^litertlm = ")[^"]+' gradle/libs.versions.toml)
           echo "LITERT=$LITERT" >> "$GITHUB_ENV"
           chmod +x ./gradlew
+          set -o pipefail
           ./gradlew --no-daemon assembleDevDebug \
             -PAPP_VERSION_NAME="0.9.7-dev-litertlm-${LITERT}" \
-            -PAPP_VERSION_CODE="${{ github.run_number }}"
+            -PAPP_VERSION_CODE="${{ github.run_number }}" 2>&1 | tee build.log
 
       - name: Collect APK
         run: |
@@ -62,3 +63,21 @@ jobs:
           files: |
             Android/src/out/*.apk
             Android/src/out/SHA256SUMS.txt
+
+      # Logs need a login to download; publish compiler errors as a public file instead.
+      - name: Publish build errors
+        if: failure()
+        run: |
+          mkdir -p out
+          grep -E "^e: |error:|FAILURE|What went wrong" -A3 build.log | head -300 > out/build-errors.txt || true
+          tail -150 build.log > out/build-tail.txt || true
+      - uses: softprops/action-gh-release@v3
+        if: failure()
+        with:
+          tag_name: failed-${{ github.ref_name }}-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: FAILED ${{ github.ref_name }} run ${{ github.run_number }}
+          prerelease: true
+          files: |
+            Android/src/out/build-errors.txt
+            Android/src/out/build-tail.txt
