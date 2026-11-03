@@ -1,0 +1,64 @@
+# Pinned test builds (Evan's fork): OlliteRT v0.9.7-beta.1 with only the LiteRT-LM version changed.
+# Push to a pinned-* branch -> dev-flavor debug APK (installs beside the stock app) -> prerelease with
+# the APK + SHA256SUMS, downloadable without login. Debug signing: a new key per run, so a rebuild
+# must be uninstalled first. Upstream's release.yml needs signing secrets and is not used here.
+name: Pinned test build
+
+on:
+  push:
+    branches: ['pinned-*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Android/src
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - uses: android-actions/setup-android@v4
+
+      - name: Install Android SDK packages
+        run: |
+          SDK=$(grep -oP '(?<=compileSdk\s=\s)\d+' app/build.gradle.kts)
+          sdkmanager --licenses < /dev/null > /dev/null || true
+          sdkmanager "platforms;android-${SDK}" "build-tools;${SDK}.0.0" "platform-tools"
+
+      - name: Build dev debug APK
+        run: |
+          LITERT=$(grep -oP '(?<=^litertlm = ")[^"]+' gradle/libs.versions.toml)
+          echo "LITERT=$LITERT" >> "$GITHUB_ENV"
+          chmod +x ./gradlew
+          ./gradlew --no-daemon assembleDevDebug \
+            -PAPP_VERSION_NAME="0.9.7-dev-litertlm-${LITERT}" \
+            -PAPP_VERSION_CODE="${{ github.run_number }}"
+
+      - name: Collect APK
+        run: |
+          mkdir -p out
+          APK=$(ls app/build/outputs/apk/dev/debug/*.apk | head -1)
+          cp "$APK" "out/OlliteRT-dev-litertlm-${LITERT}-run${{ github.run_number }}.apk"
+          cd out && sha256sum *.apk > SHA256SUMS.txt && cat SHA256SUMS.txt
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          tag_name: build-${{ github.ref_name }}-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ github.ref_name }} run ${{ github.run_number }}
+          prerelease: true
+          files: |
+            Android/src/out/*.apk
+            Android/src/out/SHA256SUMS.txt
