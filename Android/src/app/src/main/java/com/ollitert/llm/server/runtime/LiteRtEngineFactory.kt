@@ -22,12 +22,12 @@ import android.os.Environment
 import android.os.StatFs
 import android.util.Log
 import com.google.ai.edge.litertlm.Backend
-import com.google.ai.edge.litertlm.Capabilities
 import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
+import com.google.ai.edge.litertlm.ModelInfo
 import com.google.ai.edge.litertlm.ExperimentalApi
 import com.google.ai.edge.litertlm.ExperimentalFlags
 import com.google.ai.edge.litertlm.Message
@@ -286,8 +286,9 @@ object LiteRtEngineFactory {
 
     var supportsSpeculativeDecoding = false
     try {
-      Capabilities(modelPath).use {
-        supportsSpeculativeDecoding = it.hasSpeculativeDecodingSupport()
+      // LiteRT-LM 0.18: Capabilities was replaced by ModelInfo (spec-decoding flag on ModelInfo.Llm).
+      ModelInfo.from(modelPath).use {
+        supportsSpeculativeDecoding = (it as? ModelInfo.Llm)?.hasSpeculativeDecodingSupport() ?: false
       }
     } catch (e: Exception) {
       Log.w(TAG, "Capabilities probe failed for '${model.name}': ${e.message}")
