@@ -427,7 +427,8 @@ object LiteRtEngineFactory {
           // Flag only gates whether per-message ResponseFormat is permitted —
           // it has no effect unless a request actually passes one. Always-on
           // so json_schema requests can use native constrained decoding.
-          enableResponseFormat = true,
+          // TEST (pinned fork): off, like Gallery's chat; suspect for GPU dropped tokens.
+          enableResponseFormat = false,
           samplerConfig =
             if (useSampler) {
               SamplerConfig(
@@ -487,7 +488,8 @@ object LiteRtEngineFactory {
           // Flag only gates whether per-message ResponseFormat is permitted —
           // it has no effect unless a request actually passes one. Always-on
           // so json_schema requests can use native constrained decoding.
-          enableResponseFormat = true,
+          // TEST (pinned fork): off, like Gallery's chat; suspect for GPU dropped tokens.
+          enableResponseFormat = false,
           samplerConfig =
             if (!isNpuBackend) {
               SamplerConfig(
