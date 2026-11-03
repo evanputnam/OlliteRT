@@ -235,6 +235,10 @@ dependencies {
   implementation(libs.hilt.work)
   ksp(libs.hilt.android.compiler)
   ksp(libs.hilt.compiler)
+  // LiteRT-LM 0.18 is built with Kotlin metadata 2.4; Hilt's bundled reader stops at 2.3.
+  // Same workaround as AI Edge Gallery 1.0.22.
+  ksp("org.jetbrains.kotlin:kotlin-metadata-jvm:2.4.0")
+  annotationProcessor("org.jetbrains.kotlin:kotlin-metadata-jvm:2.4.0")
   ksp(libs.androidx.room.compiler)
   testImplementation(libs.junit)
   testImplementation(libs.mockk)
@@ -268,3 +272,6 @@ protobuf {
     }
   }
 }
+
+// See kotlin-metadata-jvm note in dependencies (LiteRT-LM 0.18, as in AI Edge Gallery 1.0.22).
+configurations.all { resolutionStrategy.force("org.jetbrains.kotlin:kotlin-metadata-jvm:2.4.0") }
