@@ -21,6 +21,7 @@ import android.content.Context
 import android.os.Environment
 import android.os.StatFs
 import android.util.Log
+import com.google.ai.edge.litertlm.ActivationDataType
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Conversation
@@ -278,8 +279,12 @@ object LiteRtEngineFactory {
         else -> Backend.CPU()
       },
       maxNumTokens = maxTokens,
+      // TEST: FP32 on GPU; default FP16 corrupts past ~2,048 tokens (LiteRT-LM #3913, #4001). Own compile cache.
+      activationDataType = if (backend is Backend.GPU) ActivationDataType.FLOAT32 else null,
       cacheDir =
-        if (modelPath.startsWith("/data/local/tmp"))
+        if (backend is Backend.GPU)
+          java.io.File(context.cacheDir, "fp32").apply { mkdirs() }.absolutePath
+        else if (modelPath.startsWith("/data/local/tmp"))
           context.getExternalFilesDir(null)?.absolutePath
         else null,
     )
