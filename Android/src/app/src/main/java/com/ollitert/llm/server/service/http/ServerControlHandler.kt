@@ -94,18 +94,42 @@ class ServerControlHandler(
 
   /**
    * Handles POST /v1/server/reload — triggers a model reload.
+   * TEST (fork): an optional JSON body switches first: {"model":"...","accelerator":"GPU|CPU","max_tokens":4096}.
+   * Fields left out keep their current values; a switch is saved as that model's settings.
    */
-  fun handleServerReload(defaultModel: Model?, keepAliveUnloadedModelName: String?): HttpResponse {
-    val modelName = defaultModel?.name ?: keepAliveUnloadedModelName
-      ?: return httpBadRequest("No model loaded")
+  fun handleServerReload(body: String, defaultModel: Model?, keepAliveUnloadedModelName: String?): HttpResponse {
     val reloadPort = ServerMetrics.port.value
-    ServerService.reload(serviceContext, reloadPort, modelName)
-    val result = buildJsonObject {
-      put("success", true)
-      put("message", "Model reloading")
-      put("model", modelName)
+    if (body.isBlank()) {
+      val modelName = defaultModel?.name ?: keepAliveUnloadedModelName
+        ?: return httpBadRequest("No model loaded")
+      ServerService.reload(serviceContext, reloadPort, modelName)
+      return httpOkJson(reloadResult(modelName).toString())
     }
-    return httpOkJson(result.toString())
+    val obj = try {
+      Json.parseToJsonElement(body).jsonObject
+    } catch (e: Exception) {
+      return httpBadRequest("Invalid JSON body: ${e.message?.take(200) ?: "parse error"}")
+    }
+    val requestedName = parseConfigString(obj, "model")
+    val currentName = defaultModel?.name ?: keepAliveUnloadedModelName
+    val target = (requestedName ?: currentName)?.let { modelLifecycle.pickModelByName(it) }
+      ?: return httpBadRequest("Model not found: ${requestedName ?: "none loaded"}")
+    val merged = (ServerPrefs.getInferenceConfig(serviceContext, target.prefsKey) ?: target.configValues).toMutableMap()
+    parseConfigString(obj, "accelerator")?.let { raw ->
+      val accelerator = target.accelerators.firstOrNull { it.label.equals(raw, ignoreCase = true) }
+        ?: return httpBadRequest("${target.name} supports ${target.accelerators.map { it.label }}, not $raw")
+      merged[ConfigKeys.ACCELERATOR.id] = accelerator.label
+    }
+    parseConfigInt(obj, "max_tokens")?.let { merged[ConfigKeys.MAX_TOKENS.id] = clampMaxTokens(it) }
+    ServerPrefs.setInferenceConfig(serviceContext, target.prefsKey, merged)
+    ServerService.reload(serviceContext, reloadPort, target.name, merged)
+    return httpOkJson(reloadResult(target.name).toString())
+  }
+
+  private fun reloadResult(modelName: String) = buildJsonObject {
+    put("success", true)
+    put("message", "Model reloading")
+    put("model", modelName)
   }
 
   private data class ModelContext(

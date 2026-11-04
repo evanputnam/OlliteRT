@@ -197,8 +197,8 @@ class KtorServer(
 
   internal fun handleServerStop(): HttpResponse = serverControlHandler.handleServerStop()
 
-  internal fun handleServerReload(): HttpResponse =
-    serverControlHandler.handleServerReload(defaultModel, keepAliveUnloadedModelName)
+  internal fun handleServerReload(body: String): HttpResponse =
+    serverControlHandler.handleServerReload(body, defaultModel, keepAliveUnloadedModelName)
 
   internal fun handleServerThinking(body: String): HttpResponse =
     serverControlHandler.handleServerThinking(body, defaultModel, keepAliveUnloadedModelName)

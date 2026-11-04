@@ -37,8 +37,8 @@ internal fun Routing.serverControlRoutes(server: KtorServer) {
 
     post("/v1/server/reload") {
       if (!requireServerControl(call)) return@post
-      withRequestLogging(call) { _, _, _, _, _, _ ->
-        handleServerReload()
+      withRequestLogging(call) { body, _, _, _, _, _ ->
+        handleServerReload(body)
       }
     }
 
