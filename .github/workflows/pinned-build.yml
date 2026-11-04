@@ -1,6 +1,6 @@
 # Pinned test builds (Evan's fork): OlliteRT v0.9.7-beta.1 with only the LiteRT-LM version changed.
 # Push to a pinned-* branch -> dev-flavor debug APK (installs beside the stock app) -> prerelease with
-# the APK + SHA256SUMS, downloadable without login. Debug signing key is cached across runs
+# the APK + SHA256SUMS, downloadable without login. A test signing key is cached per branch
 # (actions/cache), so rebuilds install as updates; if the cache expires, uninstall first. Upstream's release.yml needs signing secrets and is not used here.
 name: Pinned test build
 
@@ -31,11 +31,19 @@ jobs:
 
       - uses: android-actions/setup-android@v4
 
-      # Keep one debug signing key across runs so test builds install as updates (models survive).
+      # Keep one test signing key across runs so test builds install as updates (models survive).
+      # Explicit path and signing flags: caching the default debug.keystore gave a new key every run.
       - uses: actions/cache@v4
         with:
-          path: ~/.android/debug.keystore
-          key: ollitert-pinned-debug-keystore-v1
+          path: ~/pinned-test.keystore
+          key: ollitert-pinned-test-keystore-v2
+
+      - name: Create test signing key if the cache missed
+        run: |
+          [ -f ~/pinned-test.keystore ] || keytool -genkeypair -keystore ~/pinned-test.keystore \
+            -storepass android -keypass android -alias pinned -keyalg RSA -keysize 2048 \
+            -validity 10000 -dname "CN=OlliteRT pinned test"
+          keytool -list -keystore ~/pinned-test.keystore -storepass android -alias pinned | tail -1
 
       - name: Install Android SDK packages
         run: |
@@ -51,7 +59,11 @@ jobs:
           set -o pipefail
           ./gradlew --no-daemon assembleDevDebug \
             -PAPP_VERSION_NAME="0.9.7-dev-litertlm-${LITERT}-${{ github.ref_name }}" \
-            -PAPP_VERSION_CODE="${{ github.run_number }}" 2>&1 | tee build.log
+            -PAPP_VERSION_CODE="${{ github.run_number }}" \
+            -Pandroid.injected.signing.store.file="$HOME/pinned-test.keystore" \
+            -Pandroid.injected.signing.store.password=android \
+            -Pandroid.injected.signing.key.alias=pinned \
+            -Pandroid.injected.signing.key.password=android 2>&1 | tee build.log
 
       - name: Collect APK
         run: |
