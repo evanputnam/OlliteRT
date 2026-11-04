@@ -267,6 +267,8 @@ object LiteRtEngineFactory {
     val canFallbackToCpu = backendResolution.canFallbackToCpu
     val modelPath = model.getPath(context = context)
 
+    fun useFp32(backend: Backend) = backend is Backend.GPU && !model.name.contains("rope", ignoreCase = true)
+
     fun engineConfigFor(backend: Backend, vision: Backend) = EngineConfig(
       modelPath = modelPath,
       backend = backend,
@@ -280,9 +282,10 @@ object LiteRtEngineFactory {
       },
       maxNumTokens = maxTokens,
       // TEST: FP32 on GPU; default FP16 corrupts past ~2,048 tokens (LiteRT-LM #3913, #4001). Own compile cache.
-      activationDataType = if (backend is Backend.GPU) ActivationDataType.FLOAT32 else null,
+      // Model files patched for that bug (name contains "rope") stay on the default FP16, to compare the two fixes.
+      activationDataType = if (useFp32(backend)) ActivationDataType.FLOAT32 else null,
       cacheDir =
-        if (backend is Backend.GPU)
+        if (useFp32(backend))
           java.io.File(context.cacheDir, "fp32").apply { mkdirs() }.absolutePath
         else if (modelPath.startsWith("/data/local/tmp"))
           context.getExternalFilesDir(null)?.absolutePath
